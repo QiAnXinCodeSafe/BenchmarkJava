@@ -1,3 +1,1 @@
-source "scripts/verifyBenchmarkPluginAvailable.sh"
-mvn -Djava.awt.headless=true org.owasp:benchmarkutils-maven-plugin:create-scorecard -DconfigFile=data/anonymousScoringConfig.yaml
-
+mvn validate -Pbenchmarkscore -Dexec.args="expectedresults-1.2beta.csv results none anonymous"

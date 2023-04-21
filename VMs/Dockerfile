@@ -1,44 +1,31 @@
 # This dockerfile builds a container that pulls down and runs the latest version of Benchmark
-FROM ubuntu:latest
-MAINTAINER "Dave Wichers dave.wichers@owasp.org"
+FROM ubuntu:15.04
+MAINTAINER Simon Bennetts "psiinon@gmail.com"
 
-RUN apt-get update
-RUN DEBIAN_FRONTEND="noninteractive" apt-get -y install tzdata
-RUN apt-get install -q -y \
-     openjdk-8-jre-headless \
-     openjdk-8-jdk \
-     git \
-     maven \
-     wget \
-     iputils-ping \
-     && apt-get clean
+RUN apt-get update && apt-get clean
+RUN apt-get install -q -y make automake autoconf gcc g++ openjdk-7-jre-headless openjdk-7-jdk ruby wget curl xmlstarlet unzip git x11vnc xvfb openbox xterm net-tools ruby-dev && apt-get clean
+RUN apt-get --assume-yes --fix-missing install python-pip x11vnc 
 
-RUN mkdir /owasp
-WORKDIR /owasp
+RUN mkdir /benchmark
+WORKDIR /benchmark
+RUN wget http://archive.apache.org/dist/maven/maven-3/3.2.3/binaries/apache-maven-3.2.3-bin.tar.gz
+RUN tar -xzf apache-maven-3.2.3-bin.tar.gz
+RUN cp -R apache-maven-3.2.3 /usr/local
+RUN ln -s /usr/local/apache-maven-3.2.3/bin/mvn /usr/bin/mvn
 
-# Download, build, install Benchmark Utilities required by crawler and scorecard generation
-RUN git clone https://github.com/OWASP-Benchmark/BenchmarkUtils.git
-WORKDIR /owasp/BenchmarkUtils
-RUN mvn install
-
-# Download, build BenchmarkJava
-WORKDIR /owasp
-RUN git clone https://github.com/OWASP-Benchmark/BenchmarkJava
-
-# Workaround for security fix for CVE-2022-24765
-RUN git config --global --add safe.directory /owasp/BenchmarkJava
-
-WORKDIR /owasp/BenchmarkJava
-RUN mvn clean package cargo:install
+ENV bench /benchmark/bench.sh
+RUN echo "#!/bin/sh" > ${bench}
+RUN echo "git clone https://github.com/OWASP/benchmark" >> ${bench}
+RUN echo "cd benchmark" >> ${bench}
+RUN echo "mvn compile" >> ${bench}
+RUN echo "chmod +x runRemoteAccessibleBenchmark.sh" >> ${bench}
+RUN echo "./runRemoteAccessibleBenchmark.sh" >> ${bench}
+RUN chmod a+x ${bench}
 
 RUN useradd -d /home/bench -m -s /bin/bash bench 
 RUN echo bench:bench | chpasswd
 
-RUN chown -R bench /owasp/
-ENV PATH /owasp/BenchmarkJava:$PATH
+RUN chown -R bench /benchmark/
+ENV PATH /benchmark/benchmark/:$PATH
 
-# start up Benchmark once, for 60 seconds, then kill it, so the additional dependencies required to run it are downloaded/cached in the image as well.
-# exit 0 is required to return a 'success' code, otherwise the timeout returns a failure code, causing the Docker build to fail.
-WORKDIR /owasp/BenchmarkJava
-RUN timeout 60 ./runBenchmark.sh; exit 0
-
+CMD ["/benchmark/bench.sh"]
